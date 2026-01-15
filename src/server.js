@@ -11,6 +11,16 @@ const app = express();
 // (Fastorika va AdminFastorika faqat HTTP API dan foydalanadi, cookie yo'q)
 app.use(cors());
 app.options('*', cors());
+// Har bir javobga CORS headerlarini qo'shish (preflight va xatolarda ham)
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  next();
+});
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -59,3 +69,11 @@ if (isVercel) {
 }
 
 // Export for Vercel
+// Global error handler - CORS headerlari saqlansin
+app.use((err, req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
+  const status = err.status || err.statusCode || 500;
+  res.status(status).json({ error: err.message || 'Server xatosi' });
+});
