@@ -69,11 +69,14 @@ exports.getWaitingChats = async (req, res) => {
       query.$or = [
         { isLocked: false },
         { isLocked: { $exists: false } },
+        { isLocked: null },
         { lockedByAdminId: adminId }
       ];
     }
 
+    console.log('[getWaitingChats] Query:', JSON.stringify(query));
     const chats = await Chat.find(query).sort({ lastMessageAt: -1 });
+    console.log('[getWaitingChats] Found chats:', chats.length);
 
     res.json({ success: true, chats });
   } catch (error) {
@@ -515,10 +518,12 @@ exports.unlockChat = async (req, res) => {
     await chat.save();
 
     // Hamma adminlarga xabar - chat ochildi (ularning listiga qaytadi)
+    console.log('[unlockChat] Triggering chat-unlocked event for chat:', chat._id);
     await pusher.trigger('admins', 'chat-unlocked', {
       chatId: chat._id,
       chat: chat.toObject()
     });
+    console.log('[unlockChat] Event triggered successfully');
 
     res.json({ success: true, chat });
   } catch (error) {
