@@ -153,10 +153,14 @@ exports.getChatMessages = async (req, res) => {
     const { chatId } = req.params;
     const { page = 1, limit = 50 } = req.query;
 
+    console.log('[getChatMessages] chatId:', chatId);
+
     const messages = await Message.find({ chatId })
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
+
+    console.log('[getChatMessages] Found messages count:', messages.length);
 
     const total = await Message.countDocuments({ chatId });
 
