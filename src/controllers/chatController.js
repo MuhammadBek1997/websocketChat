@@ -429,7 +429,7 @@ exports.transferChat = async (req, res) => {
   }
 };
 
-// Chatni qulflash (toggle yoqish - boshqa adminlarga ko'rinmasin)
+// Chatni qulflash (toggle yoqish - boshqa adminlarga ko'rinmasin + assign qilish)
 exports.lockChat = async (req, res) => {
   try {
     const { chatId, adminId, adminName } = req.body;
@@ -444,24 +444,35 @@ exports.lockChat = async (req, res) => {
       return res.status(404).json({ error: 'Chat topilmadi' });
     }
 
-    // Allaqachon boshqa admin lock qilganmi tekshirish
-    if (chat.isLocked && chat.lockedByAdminId !== adminId) {
+    // Allaqachon boshqa admin lock qilgan yoki assign qilganmi tekshirish
+    if (chat.assignedAdminId && chat.assignedAdminId !== adminId) {
       return res.status(400).json({
-        error: 'Chat boshqa admin tomonidan qulflangan',
-        lockedBy: chat.lockedByAdminName
+        error: 'Chat boshqa adminga biriktirilgan',
+        assignedTo: chat.assignedAdminName
       });
     }
 
+    // Lock qilish + Assign qilish
     chat.isLocked = true;
     chat.lockedByAdminId = adminId;
     chat.lockedByAdminName = adminName || 'Admin';
+    chat.assignedAdminId = adminId;
+    chat.assignedAdminName = adminName || 'Admin';
+    chat.status = 'active';
     await chat.save();
 
     // Hamma adminlarga xabar - chat qulflandi (ularning listidan o'chadi)
     await pusher.trigger('admins', 'chat-locked', {
       chatId: chat._id,
       lockedByAdminId: adminId,
-      lockedByAdminName: chat.lockedByAdminName
+      lockedByAdminName: chat.lockedByAdminName,
+      chat: chat.toObject()
+    });
+
+    // Userga xabar - admin qo'shildi
+    await pusher.trigger(`user-${chat.userId}`, 'admin-joined', {
+      chatId: chat._id,
+      adminName: chat.assignedAdminName
     });
 
     res.json({ success: true, chat });
@@ -471,7 +482,7 @@ exports.lockChat = async (req, res) => {
   }
 };
 
-// Chatni ochish (toggle o'chirish - hamma adminlarga ko'rinsin)
+// Chatni ochish (toggle o'chirish - hamma adminlarga ko'rinsin + unassign qilish)
 exports.unlockChat = async (req, res) => {
   try {
     const { chatId, adminId, isSuperAdmin } = req.body;
@@ -486,17 +497,21 @@ exports.unlockChat = async (req, res) => {
       return res.status(404).json({ error: 'Chat topilmadi' });
     }
 
-    // Faqat o'zi qulflagan admin yoki super admin ochishi mumkin
-    if (chat.lockedByAdminId !== adminId && !isSuperAdmin) {
+    // Faqat o'zi assign qilgan admin yoki super admin ochishi mumkin
+    if (chat.assignedAdminId !== adminId && !isSuperAdmin) {
       return res.status(403).json({
         error: 'Siz bu chatni ocha olmaysiz',
-        lockedBy: chat.lockedByAdminName
+        assignedTo: chat.assignedAdminName
       });
     }
 
+    // Unlock qilish + Unassign qilish
     chat.isLocked = false;
     chat.lockedByAdminId = null;
     chat.lockedByAdminName = null;
+    chat.assignedAdminId = null;
+    chat.assignedAdminName = null;
+    chat.status = 'waiting';
     await chat.save();
 
     // Hamma adminlarga xabar - chat ochildi (ularning listiga qaytadi)
