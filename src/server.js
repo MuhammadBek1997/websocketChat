@@ -10,7 +10,6 @@ const app = express();
 // CORS - hozircha barcha originlarga ruxsat beramiz
 // (Fastorika va AdminFastorika faqat HTTP API dan foydalanadi, cookie yo'q)
 app.use(cors());
-app.options('*', cors());
 // Har bir javobga CORS headerlarini qo'shish (preflight va xatolarda ham)
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
@@ -23,6 +22,12 @@ app.use((req, res, next) => {
 });
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Request logging
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
 
 // API Routes
 app.use('/api', chatRoutes);
@@ -71,6 +76,7 @@ if (isVercel) {
 // Export for Vercel
 // Global error handler - CORS headerlari saqlansin
 app.use((err, req, res, next) => {
+  console.error('Global xato:', err.message, err.stack);
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');

@@ -25,9 +25,10 @@ exports.getOrCreateChat = async (req, res) => {
       isNew = true;
 
       // Hamma adminlarga yangi chat haqida xabar (Pusher)
-      await pusher.trigger('admins', 'new-chat', {
+      // Pusher xatosini alohida catch qilamiz - bu asosiy operatsiyaga ta'sir qilmasin
+      pusher.trigger('admins', 'new-chat', {
         chat: chat.toObject()
-      });
+      }).catch(err => console.error('Pusher trigger xatosi:', err.message));
     }
 
     res.json({ success: true, chat, isNew });

@@ -2,8 +2,13 @@ const express = require('express');
 const router = express.Router();
 const chatController = require('../controllers/chatController');
 
+// Async handler wrapper
+const asyncHandler = (fn) => (req, res, next) => {
+  Promise.resolve(fn(req, res, next)).catch(next);
+};
+
 // User routes
-router.post('/chats', chatController.getOrCreateChat);
+router.post('/chats', asyncHandler(chatController.getOrCreateChat));
 router.get('/chats/user/:userId', chatController.getUserChats);
 
 // Admin routes
