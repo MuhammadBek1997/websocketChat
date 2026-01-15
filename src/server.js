@@ -7,39 +7,10 @@ const chatRoutes = require('./routes/chatRoutes');
 
 const app = express();
 
-// CORS konfiguratsiyasi
-const defaultAllowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:5174',
-  process.env.FRONTEND_ORIGIN,
-  process.env.ADMIN_FRONTEND_ORIGIN
-].filter(Boolean);
-
-const envOrigins = (process.env.CORS_ORIGIN || '')
-  .split(',')
-  .map(o => o.trim())
-  .filter(Boolean);
-
-const allowedOrigins = envOrigins.length > 0 ? envOrigins : defaultAllowedOrigins;
-
-const corsOptions = {
-  origin: function (origin, callback) {
-    if (!origin) {
-      return callback(null, true);
-    }
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    return callback(new Error('Not allowed by CORS'));
-  },
-  methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-};
-
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+// CORS - hozircha barcha originlarga ruxsat beramiz
+// (Fastorika va AdminFastorika faqat HTTP API dan foydalanadi, cookie yo'q)
+app.use(cors());
+app.options('*', cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
