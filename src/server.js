@@ -29,6 +29,17 @@ app.use((req, res, next) => {
   next();
 });
 
+// Ensure DB connection before API routes (for Vercel serverless)
+app.use('/api', async (req, res, next) => {
+  try {
+    await ensureDb();
+    next();
+  } catch (err) {
+    console.error('DB ulanish xatosi:', err);
+    res.status(500).json({ error: 'Database ulanish xatosi' });
+  }
+});
+
 // API Routes
 app.use('/api', chatRoutes);
 
