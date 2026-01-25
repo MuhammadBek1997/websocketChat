@@ -1,0 +1,58 @@
+# Dependencies
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files (sensitive data)
+.env
+.env.local
+.env.*.local
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker files (no need in image)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Documentation
+README.md
+docs/
+*.md
+
+# Client folder (frontend - backend image uchun kerak emas)
+client/
+
+# Test files
+*.test.js
+*.spec.js
+__tests__/
+coverage/
+.nyc_output/
+
+# Build artifacts
+dist/
+build/
+*.log
+
+# Vercel config (biz Railway ishlatamiz)
+vercel.json
+.vercel/
+
+# Temporary files
+tmp/
+temp/
+*.tmp

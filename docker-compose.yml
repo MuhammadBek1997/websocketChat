@@ -1,0 +1,64 @@
+# ============================================
+# Fastorika Chat Server - Docker Compose
+# Local development va testing uchun
+# ============================================
+
+version: '3.8'
+
+services:
+  # Chat Server
+  chat-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fastorika-chat
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3001}:3001"
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=3001
+      - MONGODB_URI=${MONGODB_URI}
+      - CORS_ORIGIN=${CORS_ORIGIN:-*}
+    networks:
+      - fastorika-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # MongoDB (local development uchun - production da MongoDB Atlas ishlatiladi)
+  mongodb:
+    image: mongo:6
+    container_name: fastorika-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password123
+    networks:
+      - fastorika-network
+    profiles:
+      - local-db
+
+networks:
+  fastorika-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+    driver: local

@@ -1,11 +1,14 @@
 const Chat = require('../models/Chat');
 const Message = require('../models/Message');
-const pusher = require('../config/pusher');
+
+// Socket.io instance ni olish uchun helper
+const getIO = (req) => req.app.get('io');
 
 // User uchun chat olish yoki yaratish
 exports.getOrCreateChat = async (req, res) => {
   try {
     const { userId, userName } = req.body;
+    const io = getIO(req);
 
     if (!userId) {
       return res.status(400).json({ error: 'userId majburiy' });
@@ -24,11 +27,10 @@ exports.getOrCreateChat = async (req, res) => {
       });
       isNew = true;
 
-      // Hamma adminlarga yangi chat haqida xabar (Pusher)
-      // Pusher xatosini alohida catch qilamiz - bu asosiy operatsiyaga ta'sir qilmasin
-      pusher.trigger('admins', 'new-chat', {
+      // Hamma adminlarga yangi chat haqida xabar (Socket.io)
+      io.to('admins').emit('new-chat', {
         chat: chat.toObject()
-      }).catch(err => console.error('Pusher trigger xatosi:', err.message));
+      });
     }
 
     res.json({ success: true, chat, isNew });
@@ -106,6 +108,7 @@ exports.getAdminChats = async (req, res) => {
 exports.assignChat = async (req, res) => {
   try {
     const { chatId, adminId, adminName } = req.body;
+    const io = getIO(req);
 
     if (!chatId || !adminId) {
       return res.status(400).json({ error: 'chatId va adminId majburiy' });
@@ -130,15 +133,15 @@ exports.assignChat = async (req, res) => {
     chat.status = 'active';
     await chat.save();
 
-    // Hamma adminlarga xabar - chat olib qo'yildi (Pusher)
-    await pusher.trigger('admins', 'chat-taken', {
+    // Hamma adminlarga xabar - chat olib qo'yildi (Socket.io)
+    io.to('admins').emit('chat-taken', {
       chatId: chat._id,
       adminId,
       adminName: chat.assignedAdminName
     });
 
-    // Userga xabar - admin qo'shildi (Pusher)
-    await pusher.trigger(`user-${chat.userId}`, 'admin-joined', {
+    // Userga xabar - admin qo'shildi (Socket.io)
+    io.to(`user-${chat.userId}`).emit('admin-joined', {
       chatId: chat._id,
       adminName: chat.assignedAdminName
     });
@@ -187,6 +190,7 @@ exports.getChatMessages = async (req, res) => {
 exports.sendMessage = async (req, res) => {
   try {
     const { chatId, senderId, senderType, senderName, content, messageType, fileUrl } = req.body;
+    const io = getIO(req);
 
     if (!senderId || !senderType || !content) {
       return res.status(400).json({ error: 'Majburiy maydonlar to\'ldirilmagan' });
@@ -206,7 +210,7 @@ exports.sendMessage = async (req, res) => {
         });
 
         // Hamma adminlarga yangi chat haqida xabar
-        await pusher.trigger('admins', 'new-chat', {
+        io.to('admins').emit('new-chat', {
           chat: chat.toObject()
         });
       }
@@ -237,8 +241,8 @@ exports.sendMessage = async (req, res) => {
     }
     await chat.save();
 
-    // Xabarni chatga yuborish (Pusher)
-    await pusher.trigger(`chat-${chat._id}`, 'new-message', {
+    // Xabarni chatga yuborish (Socket.io)
+    io.to(`chat-${chat._id}`).emit('new-message', {
       message: message.toObject()
     });
 
@@ -246,14 +250,14 @@ exports.sendMessage = async (req, res) => {
     if (senderType === 'user') {
       // Agar chat assigned bo'lsa - faqat shu adminga
       if (chat.assignedAdminId) {
-        await pusher.trigger(`admin-${chat.assignedAdminId}`, 'message-notification', {
+        io.to(`admin-${chat.assignedAdminId}`).emit('message-notification', {
           chatId: chat._id,
           message: message.toObject(),
           chat: chat.toObject()
         });
       } else {
         // Hamma adminlarga (waiting chat)
-        await pusher.trigger('admins', 'message-notification', {
+        io.to('admins').emit('message-notification', {
           chatId: chat._id,
           message: message.toObject(),
           chat: chat.toObject()
@@ -261,7 +265,7 @@ exports.sendMessage = async (req, res) => {
       }
     } else {
       // Admin xabar yozsa - userga
-      await pusher.trigger(`user-${chat.userId}`, 'message-notification', {
+      io.to(`user-${chat.userId}`).emit('message-notification', {
         chatId: chat._id,
         message: message.toObject()
       });
@@ -278,12 +282,13 @@ exports.sendMessage = async (req, res) => {
 exports.sendTyping = async (req, res) => {
   try {
     const { chatId, userId, userName, isTyping } = req.body;
+    const io = getIO(req);
 
     if (!chatId) {
       return res.status(400).json({ error: 'chatId majburiy' });
     }
 
-    await pusher.trigger(`chat-${chatId}`, 'typing', {
+    io.to(`chat-${chatId}`).emit('typing', {
       userId,
       userName,
       isTyping
@@ -300,6 +305,7 @@ exports.sendTyping = async (req, res) => {
 exports.markAsRead = async (req, res) => {
   try {
     const { chatId, readerId, readerType } = req.body;
+    const io = getIO(req);
 
     // Qarama-qarshi tomonning xabarlarini o'qilgan deb belgilash
     const senderType = readerType === 'admin' ? 'user' : 'admin';
@@ -314,8 +320,8 @@ exports.markAsRead = async (req, res) => {
       await Chat.findByIdAndUpdate(chatId, { unreadCount: 0 });
     }
 
-    // Pusher orqali xabar berish
-    await pusher.trigger(`chat-${chatId}`, 'messages-read', {
+    // Socket.io orqali xabar berish
+    io.to(`chat-${chatId}`).emit('messages-read', {
       chatId,
       readerId,
       readerType
@@ -332,6 +338,7 @@ exports.markAsRead = async (req, res) => {
 exports.updateUserStatus = async (req, res) => {
   try {
     const { userId, online } = req.body;
+    const io = getIO(req);
 
     // Chatni yangilash
     const chat = await Chat.findOneAndUpdate(
@@ -343,13 +350,13 @@ exports.updateUserStatus = async (req, res) => {
     if (chat) {
       // Adminlarga xabar berish
       if (chat.assignedAdminId) {
-        await pusher.trigger(`admin-${chat.assignedAdminId}`, 'user-status', {
+        io.to(`admin-${chat.assignedAdminId}`).emit('user-status', {
           chatId: chat._id,
           userId,
           online
         });
       } else {
-        await pusher.trigger('admins', 'user-status', {
+        io.to('admins').emit('user-status', {
           chatId: chat._id,
           userId,
           online
@@ -368,6 +375,7 @@ exports.updateUserStatus = async (req, res) => {
 exports.closeChat = async (req, res) => {
   try {
     const { chatId } = req.params;
+    const io = getIO(req);
 
     const chat = await Chat.findByIdAndUpdate(
       chatId,
@@ -379,9 +387,9 @@ exports.closeChat = async (req, res) => {
       return res.status(404).json({ error: 'Chat topilmadi' });
     }
 
-    // Pusher orqali xabar berish
-    await pusher.trigger(`chat-${chatId}`, 'chat-closed', { chatId });
-    await pusher.trigger(`user-${chat.userId}`, 'chat-closed', { chatId });
+    // Socket.io orqali xabar berish
+    io.to(`chat-${chatId}`).emit('chat-closed', { chatId });
+    io.to(`user-${chat.userId}`).emit('chat-closed', { chatId });
 
     res.json({ success: true, chat });
   } catch (error) {
@@ -394,6 +402,7 @@ exports.closeChat = async (req, res) => {
 exports.transferChat = async (req, res) => {
   try {
     const { chatId, fromAdminId, toAdminId, toAdminName } = req.body;
+    const io = getIO(req);
 
     const chat = await Chat.findByIdAndUpdate(
       chatId,
@@ -409,18 +418,18 @@ exports.transferChat = async (req, res) => {
     }
 
     // Eski adminga xabar
-    await pusher.trigger(`admin-${fromAdminId}`, 'chat-transferred-out', {
+    io.to(`admin-${fromAdminId}`).emit('chat-transferred-out', {
       chatId,
       toAdminName
     });
 
     // Yangi adminga xabar
-    await pusher.trigger(`admin-${toAdminId}`, 'chat-transferred-in', {
+    io.to(`admin-${toAdminId}`).emit('chat-transferred-in', {
       chat: chat.toObject()
     });
 
     // Userga xabar
-    await pusher.trigger(`user-${chat.userId}`, 'admin-changed', {
+    io.to(`user-${chat.userId}`).emit('admin-changed', {
       chatId,
       adminName: toAdminName
     });
@@ -436,6 +445,7 @@ exports.transferChat = async (req, res) => {
 exports.lockChat = async (req, res) => {
   try {
     const { chatId, adminId, adminName } = req.body;
+    const io = getIO(req);
 
     if (!chatId || !adminId) {
       return res.status(400).json({ error: 'chatId va adminId majburiy' });
@@ -465,7 +475,7 @@ exports.lockChat = async (req, res) => {
     await chat.save();
 
     // Hamma adminlarga xabar - chat qulflandi (ularning listidan o'chadi)
-    await pusher.trigger('admins', 'chat-locked', {
+    io.to('admins').emit('chat-locked', {
       chatId: chat._id,
       lockedByAdminId: adminId,
       lockedByAdminName: chat.lockedByAdminName,
@@ -473,7 +483,7 @@ exports.lockChat = async (req, res) => {
     });
 
     // Userga xabar - admin qo'shildi
-    await pusher.trigger(`user-${chat.userId}`, 'admin-joined', {
+    io.to(`user-${chat.userId}`).emit('admin-joined', {
       chatId: chat._id,
       adminName: chat.assignedAdminName
     });
@@ -489,6 +499,7 @@ exports.lockChat = async (req, res) => {
 exports.unlockChat = async (req, res) => {
   try {
     const { chatId, adminId, isSuperAdmin } = req.body;
+    const io = getIO(req);
 
     if (!chatId) {
       return res.status(400).json({ error: 'chatId majburiy' });
@@ -519,7 +530,7 @@ exports.unlockChat = async (req, res) => {
 
     // Hamma adminlarga xabar - chat ochildi (ularning listiga qaytadi)
     console.log('[unlockChat] Triggering chat-unlocked event for chat:', chat._id);
-    await pusher.trigger('admins', 'chat-unlocked', {
+    io.to('admins').emit('chat-unlocked', {
       chatId: chat._id,
       chat: chat.toObject()
     });
