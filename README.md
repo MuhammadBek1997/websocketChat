@@ -1,24 +1,5 @@
 # Fastorika Chat Server v2.0.0
 
-Real-time chat backend **Socket.io WebSocket** bilan. Railway ga Docker orqali deploy qilish uchun tayyor.
-
-## 🔄 Pusher dan WebSocket ga Migration
-
-Bu versiyada Pusher dan native WebSocket (Socket.io) ga o'tildi:
-
-| Eski (v1.x)           | Yangi (v2.0)              |
-|-----------------------|---------------------------|
-| Pusher cloud service  | Native Socket.io          |
-| pusher, pusher-js     | socket.io                 |
-| 3rd party dependency  | Self-hosted, bepul        |
-| Vercel (serverless)   | Railway (persistent)      |
-
-### Nima uchun o'zgartirdik?
-- **Bepul**: Pusher cheklangan, Socket.io cheksiz
-- **Tezkor**: Direct WebSocket, 3rd party yo'q
-- **Railway**: WebSocket ni to'liq qo'llab-quvvatlaydi
-
----
 
 ## 📁 Proyekt Strukturasi
 
